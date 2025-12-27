@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ngày ta bên nhau - Tiến & Gấm</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        :root { 
+            --pink-bg: #fde2e4; --text-pink: #ff8fa3; --dark-pink: #ff4d6d; 
+            --light-pink: #ffb1c1; --machine-border: #5d4037;
+        }
+        body { font-family: 'Arial', sans-serif; background-color: var(--pink-bg); margin: 0; overflow-x: hidden; color: #555; user-select: none; }
+
+        /* ĐĂNG NHẬP */
+        #login-screen { position: fixed; inset: 0; background: var(--pink-bg); z-index: 5000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .key { width: 65px; height: 65px; background: #fff; border: 1px solid #eee; display: flex; justify-content: center; align-items: center; border-radius: 50%; cursor: pointer; font-weight: bold; font-size: 1.2rem; transition: 0.2s; }
+        .key:active { background: #f0f0f0; transform: scale(0.9); }
+        #pass-dots { font-size: 20px; margin-bottom: 20px; color: #ff8fa3; height: 40px; transition: all 0.3s; font-weight: bold; text-align: center; width: 100%; }
+        .shake { animation: shake 0.4s; color: red !important; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+
+        /* HIỆU ỨNG CÁNH HOA / TRÁI TIM RƠI */
+        .flake { position: fixed; top: -20px; z-index: 9998; pointer-events: none; animation: fall linear forwards; }
+        @keyframes fall { 
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; } 
+            100% { transform: translateY(110vh) rotate(360deg); opacity: 0; } 
+        }
+
+        /* THÔNG BÁO NGỌT NGÀO */
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 6000; pointer-events: none; }
+        .toast { background: white; border-left: 5px solid var(--dark-pink); padding: 12px 20px; border-radius: 10px; margin-top: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); animation: slideIn 0.5s, fadeOut 0.5s 3.5s forwards; font-size: 0.9rem; color: var(--dark-pink); font-weight: bold; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; transform: translateY(-20px); } }
+
+        /* NÚT BACK TO TOP */
+        #back-to-top { position: fixed; bottom: 20px; left: 20px; width: 45px; height: 45px; background: var(--dark-pink); color: white; border-radius: 50%; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 1002; box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: none; font-size: 20px; }
+
+        /* GIAO DIỆN CHÍNH */
+        .sidebar-btn { position: fixed; top: 20px; left: 20px; font-size: 30px; color: var(--text-pink); cursor: pointer; z-index: 1001; background: white; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .sidebar { position: fixed; top: 0; left: -260px; width: 260px; height: 100%; background: white; transition: 0.4s; z-index: 1000; padding-top: 80px; box-shadow: 2px 0 15px rgba(0,0,0,0.1); }
+        .sidebar a { display: block; padding: 15px 30px; text-decoration: none; color: #555; font-weight: bold; border-bottom: 1px solid #fff0f3; }
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.2); display: none; z-index: 999; }
+        .main-app { display: none; padding-top: 80px; text-align: center; padding-bottom: 50px; }
+        .page { display: none; max-width: 500px; margin: auto; padding: 20px; animation: fadeIn 0.5s; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* TRANG CHỦ */
+        .header-title { color: #ff8fa3; font-size: 1.8rem; font-weight: bold; margin-bottom: 20px; }
+        .big-photo-container { width: 280px; height: 280px; margin: 0 auto 30px; border: 10px solid white; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); overflow: hidden; }
+        .big-photo-container img { width: 100%; height: 100%; object-fit: cover; }
+        .love-card { background: rgba(255, 255, 255, 0.9); padding: 20px 10px; border-radius: 25px; display: flex; justify-content: space-around; align-items: center; }
+        .small-ava { width: 80px; height: 80px; border-radius: 50%; border: 4px solid white; object-fit: cover; }
+
+        /* MÁY GẮP QUÀ & RUNG LẮC */
+        .machine-wrap { background: #fbc4ab; border: 6px solid var(--machine-border); border-radius: 25px; padding: 15px; max-width: 360px; margin: auto; box-shadow: 0 10px 0 #d08c70; transition: transform 0.1s; }
+        .machine-shake { animation: machineShake 0.5s ease-in-out; }
+        @keyframes machineShake { 
+            0%, 100% { transform: rotate(0); } 25% { transform: rotate(2deg); } 75% { transform: rotate(-2deg); }
+        }
+        .glass-area { background: white; height: 350px; border: 4px solid var(--machine-border); border-radius: 15px; position: relative; overflow: hidden; }
+        #physics-container { position: absolute; inset: 0; z-index: 5; }
+        .claw-system { position: absolute; top: 0; left: 50%; width: 60px; z-index: 100; transform: translateX(-50%); pointer-events: none; transition: left 0.1s linear; }
+        .claw-rod { width: 4px; height: 0px; background: #555; margin: 0 auto; }
+        .claw-head { position: relative; width: 44px; height: 12px; background: #ccc; border: 2px solid #666; border-radius: 4px; margin: 0 auto; }
+        .claw-arm { position: absolute; top: 8px; width: 6px; height: 32px; background: #999; border: 1px solid #666; transition: 0.3s; transform-origin: top; z-index: 101; }
+        .claw-left { left: 4px; transform: rotate(45deg); }
+        .claw-right { right: 4px; transform: rotate(-45deg); }
+        .claw-catching .claw-left { transform: rotate(5deg); }
+        .claw-catching .claw-right { transform: rotate(-5deg); }
+        .control-panel { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+        .btn-ui { background: white; border: 3px solid var(--machine-border); border-radius: 12px; width: 65px; height: 60px; font-size: 25px; cursor: pointer; box-shadow: 0 5px 0 var(--machine-border); outline: none; }
+        .btn-ui:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--machine-border); }
+
+        /* KHO ẢNH */
+        .gallery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 5px; }
+        .gallery-item { width: 100%; height: 160px; border-radius: 12px; object-fit: cover; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; transition: 0.3s; }
+        .gallery-item:hover { transform: scale(1.03) rotate(1deg); }
+        
+        #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; z-index: 7000; align-items: center; justify-content: center; }
+        #lightbox img { max-width: 90%; max-height: 80%; border: 5px solid white; border-radius: 10px; }
+
+        /* NHẠC */
+        .music-img { width: 180px; height: 180px; border-radius: 50%; border: 8px solid white; object-fit: cover; margin-bottom: 15px; background: #eee; }
+        .music-img.playing { animation: spin 10s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .progress-container { width: 100%; height: 8px; background: #eee; border-radius: 10px; margin: 15px 0; cursor: pointer; position: relative; }
+        .progress-bar { width: 0%; height: 100%; background: var(--dark-pink); border-radius: 10px; }
+        .playlist-container { background: white; border-radius: 15px; padding: 10px; max-height: 200px; overflow-y: auto; margin-top: 15px; }
+        .song-item { padding: 12px; border-radius: 10px; cursor: pointer; text-align: left; margin-bottom: 5px; font-size: 0.9rem; transition: 0.2s; }
+        .song-item.active { background: var(--light-pink); color: white; font-weight: bold; }
+
+        /* POPUP KẾT QUẢ TỐI ƯU */
+        #res-popup { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 8000; align-items: center; justify-content: center; padding: 20px; }
+        .res-content { background: white; padding: 25px; border-radius: 20px; text-align: center; width: 90%; max-width: 380px; border: 4px solid var(--machine-border); box-shadow: 0 15px 40px rgba(0,0,0,0.4); animation: fadeIn 0.4s; }
+        #res-img { width: 100%; border-radius: 15px; margin: 15px 0; border: 3px solid var(--pink-bg); display: none; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <div id="pass-dots">Nhập ngày sinh của anh ❤️</div>
+        <div class="keypad">
+            <div class="key" onclick="press('1')">1</div><div class="key" onclick="press('2')">2</div><div class="key" onclick="press('3')">3</div>
+            <div class="key" onclick="press('4')">4</div><div class="key" onclick="press('5')">5</div><div class="key" onclick="press('6')">6</div>
+            <div class="key" onclick="press('7')">7</div><div class="key" onclick="press('8')">8</div><div class="key" onclick="press('9')">9</div>
+            <div class="key" onclick="press('C')" style="color:#aaa">C</div><div class="key" onclick="press('0')">0</div><div class="key" onclick="checkPass()" style="color:green">✓</div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+    <button id="back-to-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">❤</button>
+
+    <div class="sidebar-btn" onclick="openSidebar()">☰</div>
+    <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+    <div class="sidebar" id="sidebar">
+        <a href="#" onclick="showPage('home')">🏠 Trang chủ</a>
+        <a href="#" onclick="showPage('music-page')">🎵 Nhạc của chúng mình</a>
+        <a href="#" onclick="showPage('gallery-page')">📸 Kho ảnh kỷ niệm</a>
+        <a href="#" onclick="showPage('letter-page')">💌 Thư gửi Gấm iu</a>
+        <a href="#" onclick="showPage('game-page')">🕹️ Máy gắp quà</a>
+        <a href="javascript:void(0)" onclick="moGameGacha()">🎁 Gacha bao búa kéo</a>
+        <a href="javascript:void(0)" onclick="showGame()">🧸 Chơi với Gấu con</a>
+        <a href="javascript:void(0)" onclick="showAntGame()">🐜 Diệt kiến bảo vệ Gấm</a>
+        <a href="javascript:void(0)" onclick="showPage('wolf-game-page'); closeSidebar();">🐺 Sói hoang hư hỏng đến</a>
+    </div>
+
+    <div class="main-app" id="main-app">
+        <div id="home" class="page active">
+            <div class="header-title">Ngày ta bên nhau</div>
+            <div class="big-photo-container"><img src="https://raw.githubusercontent.com/1682004tien-code/images-/main/z7363155157420_05969015e2b6b7a7c5b9b48a0c580d60.jpg"></div>
+            <div class="love-card">
+                <div><img src="https://raw.githubusercontent.com/1682004tien-code/images-/main/z7363384647804_3b14aae3d9898474b478b8fb9bda422d.jpg" class="small-ava"><div>Tiến iu</div></div>
+                <div style="text-align:center; color: var(--text-pink)">
+                    ❤️
+                    <div style="font-size:1.8rem; font-weight:bold" id="d">0 ngày</div>
+                    <div id="clock" style="font-family: monospace; font-weight: bold;">00:00:00</div>
+                </div>
+                <div><img src="https://raw.githubusercontent.com/1682004tien-code/images-/main/z7363370025478_d42fa114c4714eab096b78a8097a4754.jpg" class="small-ava"><div>Gấm iu</div></div>
+            </div>
+        </div>
+
+        <div id="music-page" class="page">
+            <img src="" id="player-img" class="music-img">
+            <h3 id="player-title" style="margin: 10px 0;">Đang tải...</h3>
+            <div class="progress-container" id="p-cont" onclick="seek(event)"><div class="progress-bar" id="progress"></div></div>
+            <div style="display:flex; justify-content:center; gap:15px; margin-bottom: 20px">
+                <button class="btn-ui" onclick="prevSong()" style="width:50px; height:50px; font-size: 18px;">⏮</button>
+                <button class="btn-ui" onclick="togglePlay()" id="play-btn" style="width:60px; height:60px; background:var(--dark-pink); color:white">▶</button>
+                <button class="btn-ui" onclick="nextSong()" style="width:50px; height:50px; font-size: 18px;">⏭</button>
+            </div>
+            <div class="playlist-container" id="playlist"></div>
+            <audio id="audio-player"></audio>
+        </div>
+
+        <div id="gallery-page" class="page">
+            <h2 style="color: var(--text-pink); margin-bottom: 15px;">Kho ảnh kỷ niệm</h2>
+            <div class="gallery-grid">
+                <img src="https://github.com/1682004tien-code/imagesi-/blob/763612c31444945cfca830089b93e00d50fd3d2a/z7366805230719_5ef5981f7ac63eded287b005fb96cb8f.jpg?raw=true" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805226647_5380c27fe87dde491435c9ea620398ad.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805220529_8e17d01add86f2c46277964f9fb02ace.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805195988_2ce0e827bb50760c754895ed5d18cc25.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805175781_8b2da5f55375f74168048fdeb7b98979.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805174505_30c0bc72e4a419f3959eb390c7e1e722.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805158674_9903e99958bbaefd10facd9a7749a121.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805140834_669ddbff6bdc7636cb2235b74bdde34a.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805140531_7000acdf4e5b4545bf28474af6ab89ee.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805087768_5d77c550f57949c64a1c4b07a1f1fbc6.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805077896_33106612b312719d9d56bae7d5ac56db.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+                <img src="https://raw.githubusercontent.com/1682004tien-code/imagesi-/763612c31444945cfca830089b93e00d50fd3d2a/z7366805061474_0c51047a4a533be4ca70071efe8efcac.jpg" class="gallery-item" onclick="zoomImg(this.src)">
+            </div>
+        </div>
+
+        <div id="letter-page" class="page">
+            <div style="background: white; padding: 25px; border-radius: 20px; text-align: left; line-height: 1.8; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                Gấm iu ơi,<br><br>Đây là bức thư dành riêng cho em đóa. Chúc bé iu của anh luôn vui vẻ và hạnh phúc bên anh nhé! Mỗi ngày trôi qua, anh lại thấy mình may mắn vì có em ở bên. Hãy đợi anh nhé, dù những lúc không có anh ở bên, đừng buồn vì sớm thôi anh sẽ trở lại bên em, anh sẽ không để sự chờ đợi, cố gắng của em lãng phí. Thời gian xa anh bao lâu thì lúc gặp lại anh sẽ bên em và thương em gấp bội. Yêu em nhất đó, BÉ IU CỦA ANH ❤️
+            </div>
+        </div>
+
+        <div id="game-page" class="page">
+            <div class="machine-wrap" id="machine">
+                <div class="glass-area">
+                    <div id="physics-container"></div>
+                    <div class="claw-system" id="claw">
+                        <div class="claw-rod" id="rod"></div>
+                        <div class="claw-head">
+                            <div class="claw-arm claw-left"></div>
+                            <div class="claw-arm claw-right"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="control-panel">
+                    <button class="btn-ui" onclick="moveClaw(-30)">←</button>
+                    <button class="btn-ui" onclick="dropClaw()" style="width:100px; font-size: 20px; font-weight: bold; color: var(--dark-pink)">GẮP</button>
+                    <button class="btn-ui" onclick="moveClaw(30)">→</button>
+                </div>
+            </div>
+        </div><div id="wolf-game-page" class="page">
+    <div style="width: 100%; height: 100vh; position: relative; background: #5a7d51;">
+        <div onclick="showPage('home')" style="position: absolute; top: 10px; left: 10px; z-index: 9999; background: rgba(0,0,0,0.5); color: white; padding: 5px 15px; border-radius: 20px; font-size: 12px; cursor: pointer;">
+            ← Quay lại
+        </div>
+        
+        <iframe src="https://1682004tien-code.github.io/tiencubu-/soihoanghuhong.html" 
+                style="width: 100%; height: 100%; border: none; display: block;">
+        </iframe>
+    </div>
+</div>
+    </div>
+
+    <div id="lightbox" onclick="this.style.display='none'"><img src="" id="zoom-src"></div>
+
+    <div id="res-popup">
+        <div class="res-content">
+            <h3 id="res-msg" style="color: var(--dark-pink); line-height: 1.5;"></h3>
+            <center><img id="res-img" src=""></center>
+            <button onclick="closePopup()" style="margin-top:20px; padding:12px 25px; background:var(--light-pink); color:white; border:none; border-radius:10px; cursor:pointer; font-weight:bold; width: 100%;">TIẾP TỤC</button>
+        </div>
+    </div>
+
+    <script>
+        const GIFT_IMAGES = [
+            "https://raw.githubusercontent.com/1682004tien-code/imagesi-/6b1ef6a38056f437e0f74505170d134bac8f4c43/z7367057582158_2497b82de5032f91441636147e2e0ba0.jpg",
+            "https://raw.githubusercontent.com/1682004tien-code/imagesi-/6b1ef6a38056f437e0f74505170d134bac8f4c43/z7367057572305_d3945ee2c759be4186755199d31a1e08.jpg",
+            "https://raw.githubusercontent.com/1682004tien-code/imagesi-/6b1ef6a38056f437e0f74505170d134bac8f4c43/z7367057567757_de89a1282f0b27bba6841c8755a6799d.jpg",
+            "https://raw.githubusercontent.com/1682004tien-code/imagesi-/6b1ef6a38056f437e0f74505170d134bac8f4c43/z7367057564121_1871fcac005372146d86c141a8766a99.jpg",
+            "https://raw.githubusercontent.com/1682004tien-code/imagesi-/6b1ef6a38056f437e0f74505170d134bac8f4c43/z7367057556641_026efa02204b554db3761372f2eefcfe.jpg",
+            "https://raw.githubusercontent.com/1682004tien-code/imagesi-/6b1ef6a38056f437e0f74505170d134bac8f4c43/z7367057553295_176a3a4ae2b51d2b7116f21adcc5f16c.jpg",
+            "https://raw.githubusercontent.com/1682004tien-code/imagesi-/6b1ef6a38056f437e0f74505170d134bac8f4c43/z7367057550281_1967d4ba8a25a4ef3a5db43ac09325e0.jpg",
+            "https://raw.githubusercontent.com/1682004tien-code/imagesi-/6b1ef6a38056f437e0f74505170d134bac8f4c43/z7367057547589_d220e32c146f4ea55a51aeb4dded0cb7.jpg",
+            "https://raw.githubusercontent.com/1682004tien-code/imagesi-/6b1ef6a38056f437e0f74505170d134bac8f4c43/z7367057545603_d86a0b9095efa0156a513faf85174569.jpg",
+            "https://raw.githubusercontent.com/1682004tien-code/imagesi-/6b1ef6a38056f437e0f74505170d134bac8f4c43/z7367057536526_7a832de557cc4a5a9908ff4acea9bf24.jpg"
+        ];
+
+        let availableGifts = [...GIFT_IMAGES];
+        const START_DATE = new Date("2024-09-30T00:00:00");
+        const songs = [
+            { title: "Phép màu", url: "https://raw.githubusercontent.com/1682004tien-code/images-/main/Ph%C3%A9p%20M%C3%A0u%20(%C4%90%C3%A0n%20C%C3%A1%20G%E1%BB%97%20OST)%20-%20Mounter%20x%20MAYDAYs,%20Minh%20T%E1%BB%91c%20-%20Official%20MV.mp3", img: "https://raw.githubusercontent.com/1682004tien-code/imagesi-/main/z7365076464456_76aed512db5daf0b911932acaedb43a2.jpg" },
+            { title: "Những lời hứa bỏ quên", url: "https://raw.githubusercontent.com/1682004tien-code/images-/main/Nh%C6%B0ng%20L%C6%A1i%20H%C6%B0a%20Bo%20Qu%C3%AAn%20-%20Vu.%20ft.%20Dear%20Jane%20(t%C6%B0%20Album%20-Bao%20Tang%20Cua%20Nu%C3%B4i%20Ti%C3%AAc-).mp3", img: "https://raw.githubusercontent.com/1682004tien-code/images-/main/z7365068195207_d7a185509a592b293838acec6cc47903.jpg" },
+            { title: "Nắng ấm trong tim", url: "https://raw.githubusercontent.com/1682004tien-code/images-/main/N%E1%BA%AFng%20%E1%BA%A4m%20Trong%20Tim%20Remix%20(Hot%20TikTok)%20-%20Duongg%20x%20H2O%20-%20L%E1%BA%A1c%20V%C3%A0o%20Khu%20R%E1%BB%ABng%20Hoa%20Remix%20TikTok.mp3", img: "https://raw.githubusercontent.com/1682004tien-code/imagesi-/main/z7365068770312_75ca74821f7e598646ab4737fa3acd70.jpg" },
+            { title: "Đừng làm trái tim anh đau", url: "https://raw.githubusercontent.com/1682004tien-code/images-/main/%C4%90%E1%BB%ABng%20L%C3%A0m%20Tr%C3%A1i%20Tim%20Anh%20%C4%90au%20-%20S%C6%A1n%20T%C3%B9ng%20MTP%20-%20Lyrics%20Video%20-.mp3", img: "https://raw.githubusercontent.com/1682004tien-code/imagesi-/main/z7365071503704_94aed65b32a7ec88604e947abccd1744.jpg" },
+            { title: "Một đời", url: "https://raw.githubusercontent.com/1682004tien-code/images-/main/'m%E1%BB%99t%20%C4%91%E1%BB%9Di'%20-%2014%20Casper%20&%20Bon%20Nghi%C3%AAm%20(feat.%20buitruonglinh)%20(Track%2003%20-%20Album%20'S%E1%BB%90%20KH%C3%94NG').mp3", img: "https://raw.githubusercontent.com/1682004tien-code/images-/main/z7365079915080_e49c4b7effa9dfcd79db3cd952ee2cf8.jpg" },
+            { title: "Không thời gian", url: "https://raw.githubusercontent.com/1682004tien-code/images-/main/Kh%C3%B4ng%20Th%E1%BB%9Di%20Gian%20-%20D%C6%B0%C6%A1ng%20Domic%20(Official%20Visualizer).mp3", img: "https://raw.githubusercontent.com/1682004tien-code/images-/main/z7351231387585_8d03022f6dd2ecebabfee74afa46a79c.jpg" }
+        ];
+
+        // --- HIỆU ỨNG CÁNH HOA ---
+        function createFlake() {
+            const flake = document.createElement("div");
+            const types = ["🌸", "🌸", "❤️", "💖"];
+            flake.className = "flake";
+            flake.innerText = types[Math.floor(Math.random() * types.length)];
+            flake.style.left = Math.random() * 100 + "vw";
+            flake.style.fontSize = (Math.random() * 10 + 15) + "px";
+            flake.style.animationDuration = (Math.random() * 3 + 4) + "s";
+            flake.style.opacity = Math.random();
+            document.body.appendChild(flake);
+            setTimeout(() => flake.remove(), 7000);
+        }
+        setInterval(createFlake, 300);
+
+        // --- THÔNG BÁO NGỌT NGÀO ---
+        const quotes = [
+            "Gấm là món quà tuyệt vời nhất của anh ❤️",
+            "Mỗi ngày bên Gấm đều là ngày hạnh phúc!",
+            "Anh thương Gấm nhiều lắm đó nha~",
+            "Gấm ơi, anh nhớ Gấm quá đi!",
+            "Hôm nay Gấm của anh có mệt không? ❤️",
+            "Mãi mãi bên nhau Gấm nhé!",
+            "Tiến iu Gấm nhất trên đời luôn ✨"
+        ];
+        function showSweetToast() {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerText = quotes[Math.floor(Math.random() * quotes.length)];
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+        setInterval(showSweetToast, 15000);
+
+        // --- NÚT BACK TO TOP ---
+        window.onscroll = function() {
+            const btn = document.getElementById("back-to-top");
+            if (document.body.scrollTop > 500 || document.documentElement.scrollTop > 500) {
+                btn.style.display = "flex";
+            } else {
+                btn.style.display = "none";
+            }
+        };
+
+        // --- ĐĂNG NHẬP & APP LOGIC ---
+        let currentPass = "";
+        function press(n) { 
+            const dots = document.getElementById('pass-dots');
+            dots.classList.remove('shake');
+            if(n==='C') currentPass=""; else if(currentPass.length<8) currentPass+=n; 
+            dots.innerText = currentPass === "" ? "Nhập ngày sinh của em ❤️" : "♥".repeat(currentPass.length); 
+        }
+
+        function checkPass() { 
+            const dots = document.getElementById('pass-dots');
+            if(currentPass === "16082004") { 
+                launchHearts();
+                dots.innerText = "Đúng ùi, yêu Gấm nhất! ❤️";
+                dots.style.color = "var(--dark-pink)";
+                setTimeout(() => {
+                    document.getElementById('login-screen').style.display = 'none'; 
+                    document.getElementById('main-app').style.display = 'block'; 
+                    startApp(); 
+                }, 1500);
+            } else { 
+                dots.classList.add('shake');
+                dots.innerText = "Sai ùi bé cưng"; currentPass = ""; 
+                setTimeout(() => { dots.innerText = "Nhập ngày sinh của anh ❤️"; dots.classList.remove('shake'); }, 1000);
+            } 
+        }
+
+        function launchHearts() {
+            for (let i = 0; i < 40; i++) {
+                setTimeout(() => {
+                    const heart = document.createElement("div");
+                    heart.className = "flake";
+                    heart.innerText = "❤️";
+                    heart.style.left = Math.random() * 100 + "vw";
+                    heart.style.animation = "fall 2.5s ease-out forwards";
+                    document.body.appendChild(heart);
+                    setTimeout(() => heart.remove(), 2500);
+                }, i * 100);
+            }
+        }
+
+        function updateTimer() {
+            const diff = new Date() - START_DATE;
+            const days = Math.floor(diff / 86400000);
+            const h = Math.floor((diff / 3600000) % 24);
+            const m = Math.floor((diff / 60000) % 60);
+            const s = Math.floor((diff / 1000) % 60);
+            document.getElementById('d').innerText = days + " ngày";
+            document.getElementById('clock').innerText = `${h<10?'0'+h:h}:${m<10?'0'+m:m}:${s<10?'0'+s:s}`;
+        }
+
+        // --- MUSIC PLAYER ---
+        let currentIdx = 0;
+        const audio = document.getElementById('audio-player');
+        function initPlaylist() {
+            const list = document.getElementById('playlist'); list.innerHTML = "";
+            songs.forEach((s, i) => {
+                const d = document.createElement('div'); d.className='song-item'; d.id='s-'+i; d.innerText=(i+1)+'. '+s.title;
+                d.onclick=()=>loadSong(i); list.appendChild(d);
+            });
+        }
+        function loadSong(i) {
+            currentIdx = i; audio.src = songs[i].url;
+            document.getElementById('player-title').innerText = songs[i].title;
+            document.getElementById('player-img').src = songs[i].img;
+            document.querySelectorAll('.song-item').forEach(el=>el.classList.remove('active'));
+            if(document.getElementById('s-'+i)) document.getElementById('s-'+i).classList.add('active');
+            audio.play().catch(e => console.log("User interaction needed"));
+            updatePlayBtn();
+        }
+        function togglePlay() { audio.paused ? audio.play() : audio.pause(); updatePlayBtn(); }
+        function updatePlayBtn() { 
+            document.getElementById('play-btn').innerText = audio.paused ? "▶" : "⏸"; 
+            document.getElementById('player-img').classList.toggle('playing', !audio.paused); 
+        }
+        function nextSong() { currentIdx = (currentIdx + 1) % songs.length; loadSong(currentIdx); }
+        function prevSong() { currentIdx = (currentIdx - 1 + songs.length) % songs.length; loadSong(currentIdx); }
+        audio.onended = () => nextSong();
+        audio.ontimeupdate = () => { if(audio.duration) document.getElementById('progress').style.width = (audio.currentTime/audio.duration*100)+'%'; };
+        function seek(e) {
+            const rect = document.getElementById('p-cont').getBoundingClientRect();
+            audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+        }
+
+        // --- MÁY GẮP QUÀ & RUNG VẬT LÝ ---
+        let engine, runner, balls = [], isDropping = false, needsReset = false;
+        function initPhysics() {
+            const container = document.getElementById('physics-container');
+            engine = Matter.Engine.create();
+            const render = Matter.Render.create({
+                element: container, engine: engine,
+                options: { width: 360, height: 350, wireframes: false, background: 'transparent' }
+            });
+            Matter.Composite.add(engine.world, [
+                Matter.Bodies.rectangle(180, 360, 400, 40, { isStatic: true, render: { visible: false } }),
+                Matter.Bodies.rectangle(0, 175, 10, 350, { isStatic: true, render: { fillStyle: '#5d4037' } }),
+                Matter.Bodies.rectangle(360, 175, 10, 350, { isStatic: true, render: { fillStyle: '#5d4037' } })
+            ]);
+            Matter.Render.run(render); runner = Matter.Runner.create(); Matter.Runner.run(runner, engine);
+            spawnBalls();
+            
+            // TỰ ĐỘNG RUNG MÁY MỖI 6 GIÂY
+            setInterval(shakeMachine, 6000);
+        }
+
+        function shakeMachine() {
+            const machine = document.getElementById('machine');
+            machine.classList.add('machine-shake');
+            setTimeout(() => machine.classList.remove('machine-shake'), 500);
+            
+            // Tác động lực lên bóng khi rung
+            balls.forEach(b => {
+                Matter.Body.applyForce(b, b.position, { 
+                    x: (Math.random() - 0.5) * 0.05, 
+                    y: -Math.random() * 0.05 
+                });
+            });
+        }
+
+        function spawnBalls() {
+            Matter.Composite.clear(engine.world, true); balls = [];
+            const configs = [{t:'special', e:'❤️', c:'#ff4d6d'}, {t:'bomb', e:'💣', c:'#333'}];
+            for(let i=0;i<10;i++) configs.push({t:'normal', e:'🎁', c:'#ffb1c1'});
+            configs.forEach(cfg => {
+                const b = Matter.Bodies.circle(Math.random()*300+30, Math.random()*50, 23, {
+                    restitution: 0.5, friction: 0.1, render: { sprite: { texture: drawBall(cfg.e, cfg.c) } }
+                });
+                b.ballType = cfg.t; balls.push(b); Matter.Composite.add(engine.world, b);
+            });
+            needsReset = false;
+        }
+
+        function drawBall(emoji, color) {
+            const canvas = document.createElement('canvas'); canvas.width = 46; canvas.height = 46;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color; ctx.beginPath(); ctx.arc(23, 23, 21, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "white"; ctx.font = "24px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText(emoji, 23, 23); return canvas.toDataURL();
+        }
+
+        function moveClaw(s) { 
+            if(!isDropping) { 
+                let c = document.getElementById('claw'), l = c.offsetLeft + s; 
+                if(l > 30 && l < 330) c.style.left = l + 'px'; 
+            } 
+        }
+
+        function dropClaw() {
+            if(isDropping) return; isDropping = true;
+            const rod = document.getElementById('rod'), claw = document.getElementById('claw'), clawX = claw.offsetLeft;
+            let currentY = 0, caught = null;
+            const down = setInterval(() => {
+                currentY += 4; rod.style.height = currentY + "px";
+                for (let b of balls) {
+                    const dx = b.position.x - clawX, dy = b.position.y - (currentY + 15);
+                    if (Math.sqrt(dx*dx + dy*dy) < 35) { clearInterval(down); performCatch(b); return; }
+                }
+                if (currentY >= 310) { clearInterval(down); setTimeout(pullUp, 500); }
+            }, 10);
+
+            function performCatch(t) {
+                document.getElementById('claw').classList.add('claw-catching');
+                setTimeout(() => { caught = t; Matter.Body.setStatic(caught, true); pullUp(); }, 400);
+            }
+
+            function pullUp() {
+                const up = setInterval(() => {
+                    currentY -= 3; rod.style.height = currentY + "px";
+                    if(caught) Matter.Body.setPosition(caught, { x: clawX, y: currentY + 30 });
+                    if (currentY <= 0) {
+                        clearInterval(up); isDropping = false;
+                        document.getElementById('claw').classList.remove('claw-catching');
+                        if(caught) { Matter.Composite.remove(engine.world, caught); balls = balls.filter(x => x !== caught); showResult(caught); }
+                    }
+                }, 10);
+            }
+        }
+
+        function showResult(c) {
+            const m = document.getElementById('res-msg');
+            const resImg = document.getElementById('res-img');
+            resImg.style.display = 'none';
+
+            if(c.ballType === 'special') { 
+                m.innerText = "❤️ Trái tim của anh đã thuộc về em ùi! Đây là giải siu đặc biệt đóa, em sẽ có được thứ quý giá và thứ sẽ khiến em sung sướng hạnh phúc mãi mãi. Anh biết là em đang nghĩ gì đó nha🌚. Không phải là thứ em đang nghĩ âu mà là LÀM VỢ ANH NHÉ❤️"; 
+                launchHearts(); needsReset = true; 
+            }
+            else if(c.ballType === 'bomb') { 
+                m.innerText = "💣 Ôi trúng bom rồi, bé gắp lại nhé!"; 
+                needsReset = true; 
+            }
+            else { 
+                if (availableGifts.length === 0) availableGifts = [...GIFT_IMAGES];
+                const randomIndex = Math.floor(Math.random() * availableGifts.length);
+                const randomImg = availableGifts[randomIndex];
+                availableGifts.splice(randomIndex, 1);
+
+                m.innerText = "🎁 Chúc mừng bé gắp được quà nè!";
+                resImg.src = randomImg;
+                resImg.style.display = 'block';
+            }
+            document.getElementById('res-popup').style.display='flex';
+        }
+
+        function closePopup() { document.getElementById('res-popup').style.display='none'; if(needsReset) spawnBalls(); }
+
+        // --- UI NAVIGATION ---
+        function openSidebar() { document.getElementById('sidebar').style.left='0'; document.getElementById('overlay').style.display='block'; }
+        function closeSidebar() { document.getElementById('sidebar').style.left='-260px'; document.getElementById('overlay').style.display='none'; }
+        function showPage(p) { 
+            document.querySelectorAll('.page').forEach(pg=>pg.classList.remove('active')); 
+            document.getElementById(p).classList.add('active'); closeSidebar(); 
+            if(p === 'game-page' && !engine) initPhysics();
+            window.scrollTo(0,0);
+        }
+        function zoomImg(src) { document.getElementById('zoom-src').src = src; document.getElementById('lightbox').style.display = 'flex'; }
+
+        function startApp() {
+            initPlaylist(); updateTimer(); setInterval(updateTimer, 1000); loadSong(0);
+        }
+    </script>
+<div id="gachaModal" style="display:none; position:fixed; z-index:99999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter: blur(8px); justify-content: center; align-items: center;">
+    <div style="position:relative; width:90%; max-width:420px; height:85vh; background:#fff; border-radius:30px; overflow:hidden; border: 5px solid #ffb6c1; box-shadow: 0 0 30px rgba(255,192,203,0.6);">
+        
+        <div onclick="dongGameGacha()" style="position:absolute; right:15px; top:5px; font-size:40px; cursor:pointer; color:#ff4d6d; z-index:1000; font-weight:bold; line-height:1;">&times;</div>
+        
+        <iframe id="gachaFrame" src="" style="width:100%; height:100%; border:none;"></iframe>
+    </div>
+</div>
+
+<script>
+function moGameGacha() {
+    // DÁN LINK CỦA BẠN VÀO GIỮA HAI DẤU NGOẶC KÉP DƯỚI ĐÂY
+    const linkGame = "https://panbap.github.io/Gachapon/index.html?id=eyJkYXRhIjp7ImNhbmR5VGV4dHMiOlt7InRleHQiOiLinIogQsOaQSJ9LHsidGV4dCI6IuKciiBCw5pBIn0seyJ0ZXh0Ijoi4pyKIELDmkEifSx7InRleHQiOiLinIogQsOaQSJ9LHsidGV4dCI6IuKciiBCw5pBIn0seyJ0ZXh0Ijoi4pyKIELDmkEifSx7InRleHQiOiLinIsgQkFPIn0seyJ0ZXh0Ijoi4pyLIEJBTyJ9LHsidGV4dCI6IuKciyBCQU8ifSx7InRleHQiOiLinIsgQkFPIn0seyJ0ZXh0Ijoi4pyLIEJBTyJ9LHsidGV4dCI6IuKciyBCQU8ifSx7InRleHQiOiLinIzvuI8gS8OJTyJ9LHsidGV4dCI6IuKcjO-4jyBLw4lPIn0seyJ0ZXh0Ijoi4pyM77iPIEvDiU8ifSx7InRleHQiOiLinIzvuI8gS8OJTyJ9LHsidGV4dCI6IuKcjO-4jyBLw4lPIn0seyJ0ZXh0Ijoi4pyM77iPIEvDiU8ifSx7InRleHQiOiLwn460IFhJTiBCw4BJIn0seyJ0ZXh0Ijoi8J-OtCBYSU4gQsOASSJ9LHsidGV4dCI6IvCfjrQgWElOIELDgEkifSx7InRleHQiOiLinpXinpUgVEjDik0gMiBMxq_hu6JUIn0seyJ0ZXh0Ijoi4p6V4p6VIFRIw4pNIDIgTMav4buiVCJ9LHsidGV4dCI6IuKeleKelSBUSMOKTSAyIEzGr-G7olQifSx7InRleHQiOiLimpbvuI8gSMOSQSJ9LHsidGV4dCI6IuKalu-4jyBIw5JBIn0seyJ0ZXh0Ijoi4pqW77iPIEjDkkEifSx7InRleHQiOiLwn5KjIEJPTSBC4bqhbiBi4buLIG3huqV0IDEgbMaw4bujdCByw7p0IHRp4bq_cCB0aGVvIn0seyJ0ZXh0Ijoi8J-SoyBCT00gQuG6oW4gYuG7iyBt4bqldCAxIGzGsOG7o3QgcsO6dCB0aeG6v3AgdGhlbyJ9LHsidGV4dCI6IvCflIQgxJDhu5RJIELDgEkgQ2jhu41uIDEgbMOhIGPhu6dhIGLhuqFuIMSR4buVaSB24bubaSAxIGzDoSBj4bunYSDEkeG7kWkgdGjhu6cifV19fQ"; 
+    
+    document.getElementById("gachaFrame").src = linkGame;
+    document.getElementById("gachaModal").style.display = "flex";
+    
+    // Nếu có hàm đóng menu 3 gạch thì bạn nên gọi ở đây để menu tự ẩn đi
+    // Ví dụ: if(typeof closeNav === "function") closeNav();
+}
+
+function dongGameGacha() {
+    document.getElementById("gachaModal").style.display = "none";
+    document.getElementById("gachaFrame").src = ""; // Xóa link để dừng nhạc game khi đóng
+}
+
+// Bấm ra ngoài vùng trắng cũng tự đóng game
+window.onclick = function(event) {
+    let modal = document.getElementById("gachaModal");
+    if (event.target == modal) {
+        dongGameGacha();
+    }
+}
+</script>
+<div id="bearGameModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:10000; justify-content:center; align-items:center; flex-direction:column;">
+    <div style="background:white; width:90%; max-width:400px; border-radius:20px; position:relative; overflow:hidden; box-shadow: 0 0 20px rgba(255,192,203,0.5);">
+        <div style="background:#ff4d6d; color:white; padding:12px; text-align:center; font-weight:bold; font-family: sans-serif;">
+            Gấu con đợi Gấm nè 🧸
+        </div>
+        
+        <button onclick="hideGame()" style="position:absolute; top:8px; right:10px; background:none; border:none; color:white; font-size:25px; cursor:pointer; line-height:1;">&times;</button>
+        
+        <iframe src="Interactive-hungry-bear.html" width="100%" height="450px" style="border:none; display:block;"></iframe>
+    </div>
+</div>
+
+<script>
+// Hàm để hiện game khi bấm menu
+function showGame() {
+    document.getElementById('bearGameModal').style.display = 'flex';
+    // Nếu có menu 3 gạch đang mở, bạn có thể thêm lệnh đóng menu ở đây
+}
+
+// Hàm để đóng game
+function hideGame() {
+    document.getElementById('bearGameModal').style.display = 'none';
+}
+
+// Đóng game nếu bấm ra ngoài vùng trắng
+window.onclick = function(event) {
+    var modal = document.getElementById('bearGameModal');
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+}
+</script>
+<div id="antGameModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99999; justify-content:center; align-items:center;">
+    <div style="background:white; width:95%; max-width:500px; border-radius:20px; position:relative; overflow:hidden; box-shadow: 0 0 30px rgba(0,0,0,0.5);">
+        <div style="background:#4CAF50; color:white; padding:15px; text-align:center; font-weight:bold; font-size:18px;">
+            Trận chiến kiến bảo vệ Gấm iu 🐜
+        </div>
+        
+        <button onclick="closeAntGame()" style="position:absolute; top:10px; right:10px; background:#ff4d6d; color:white; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; font-weight:bold; font-size:20px; line-height:30px; display:flex; justify-content:center; align-items:center;">&times;</button>
+        
+        <iframe id="antFrame" src="./ant-attack.html?v=1" width="100%" height="500px" style="border:none; display:block;"></iframe>
+    </div>
+</div>
+
+<script>
+function showAntGame() {
+    const modal = document.getElementById('antGameModal');
+    const iframe = document.getElementById('antFrame');
+    
+    // Ép iframe tải lại mỗi khi mở để không bị trắng
+    iframe.src = "./ant-attack.html?v=" + new Date().getTime(); 
+    modal.style.display = 'flex';
+}
+
+function closeAntGame() {
+    document.getElementById('antGameModal').style.display = 'none';
+}
+
+// Đóng khi bấm ra ngoài vùng đen
+window.onclick = function(event) {
+    const modal = document.getElementById('antGameModal');
+    if (event.target == modal) {
+        closeAntGame();
+    }
+}
+</script>
+</body>
+</html>
