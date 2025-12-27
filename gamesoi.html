@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pixel Survivor - Pro Team Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        body { margin: 0; overflow: hidden; background: #1a1a1a; touch-action: none; font-family: 'Press Start 2P', cursive; }
+        canvas { display: block; background: #5a7d51; image-rendering: pixelated; }
+        #ui { position: absolute; top: 20px; left: 20px; color: #fff; background: rgba(30,30,30,0.85); padding: 15px; border-radius: 4px; border: 2px solid #edc9af; pointer-events: none; z-index: 10; font-size: 9px; line-height: 2; box-shadow: 4px 4px 0px #000; min-width: 240px; }
+        .stat-val { color: #f1c40f; }
+        .hp-label { color: #ff4757; font-weight: bold; }
+        .rescue-label { color: #2ecc71; font-weight: bold; display: block; margin-top: 5px; }
+        #minimap-container { position: absolute; top: 20px; right: 20px; width: 120px; height: 120px; background: rgba(0, 0, 0, 0.7); border: 2px solid #edc9af; border-radius: 4px; z-index: 10; overflow: hidden; }
+        #minimap-canvas { width: 100%; height: 100%; }
+        #overlay { position: absolute; display: none; text-align: center; color: white; background: rgba(0,0,0,0.9); width: 100%; height: 100%; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        button { padding: 12px 24px; font-size: 14px; cursor: pointer; background: #edc9af; color: #1a1a1a; border: none; border-bottom: 5px solid #b38b6d; font-family: 'Press Start 2P', cursive; margin-top: 15px; pointer-events: auto; }
+        #joy-base { position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px; background: rgba(255,255,255,0.1); border-radius: 50%; border: 3px solid rgba(255,255,255,0.3); }
+        #joy-stick { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: #edc9af; border-radius: 50%; pointer-events: none; box-shadow: 0 4px 0 #b38b6d; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div>HP: <span id="hp-text" class="hp-label">3/3</span></div>
+    <div>CẤP: <span id="player-level" class="stat-val">1</span></div>
+    <div>MỤC TIÊU NẢY: <span id="bounce-count" class="stat-val">0</span> / 5</div>
+    <div>KILLS: <span id="kill-count" class="stat-val">0 / 50</span></div>
+    <div>ĐỒNG ĐỘI: <span id="allies-count" class="stat-val">0 / 4</span></div>
+    <div id="rescue-status" class="rescue-label"></div>
+</div>
+
+<div id="minimap-container"><canvas id="minimap-canvas" width="120" height="120"></canvas></div>
+<div id="joy-base"><div id="joy-stick"></div></div>
+<div id="overlay">
+    <h1>BẠN ĐÃ BỊ SÓI HOANG HƯ HỎNG HÚP</h1>
+    <button id="btnRetry">RETRY</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const IMAGES = {
+    player: 'https://raw.githubusercontent.com/1682004tien-code/tiencubu-/732585f88803d3ecba46538aaa6e2027d0cf2259/z7370883538827_5ebba9c654c27119b9bc08b26b4cff03.jpg',
+    enemy: 'https://raw.githubusercontent.com/1682004tien-code/imagesi-/f6a46849e6cda390db58b4e426f217789fede187/z7370705431903_5ef8e947e7b6a1e62a1b09fc0c26ecf2.jpg',
+    ally: 'https://raw.githubusercontent.com/1682004tien-code/tiencubu-/3f30faec3666ef96c491cf3fb30de7abd1fb68d1/z7370718636106_be0592a317b4bc1afd272d0ceaff8ab4%20(1).jpg', 
+    buffSpeed: 'https://raw.githubusercontent.com/1682004tien-code/tiencubu-/732585f88803d3ecba46538aaa6e2027d0cf2259/z7370869522977_76819c1911af0a1e72ce2eae27f4bf9e.jpg', 
+    buffSlow: 'https://raw.githubusercontent.com/1682004tien-code/tiencubu-/732585f88803d3ecba46538aaa6e2027d0cf2259/z7370869357384_1ad5ff095c42c429da25a612e432a695.jpg',  
+    buffGod: 'https://raw.githubusercontent.com/1682004tien-code/tiencubu-/732585f88803d3ecba46538aaa6e2027d0cf2259/z7370869484643_718acf5e78b04f4c77e7d67565b7af5a.jpg',   
+    buffFire: 'https://raw.githubusercontent.com/1682004tien-code/tiencubu-/732585f88803d3ecba46538aaa6e2027d0cf2259/z7370869374608_43e2850963566466d0b34bd8095b7469.jpg',  
+    buffHeal: 'https://raw.githubusercontent.com/1682004tien-code/tiencubu-/732585f88803d3ecba46538aaa6e2027d0cf2259/z7370869410478_72a5a2b8b0f22e8220fd75fffa09b051.jpg'    
+};
+
+const sprites = {};
+Object.keys(IMAGES).forEach(key => { sprites[key] = new Image(); sprites[key].src = IMAGES[key]; });
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const miniCanvas = document.getElementById('minimap-canvas');
+const miniCtx = miniCanvas.getContext('2d');
+const stick = document.getElementById('joy-stick');
+const base = document.getElementById('joy-base');
+
+const WORLD_SIZE = 4000;
+const TILE_SIZE = 120;
+let view = { x: 0, y: 0 };
+let player, enemies, bullets, obstacles, buffs, allies, rescueZone, killsSinceLastAlly;
+let gameTime, lastShotTime, isRunning, score, lastBossSpawn, lastLevelUp;
+let bossCountPerWave = 1;
+let joyX = 0, joyY = 0, keys = {};
+let floatingTexts = [];
+let tileMap = [];
+
+function initGame() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const centerX = WORLD_SIZE / 2;
+    const centerY = WORLD_SIZE / 2;
+
+    player = { 
+        x: centerX, y: centerY, size: 40, speed: 4.2, hp: 3, maxHp: 3, 
+        invuln: 0, speedBuff: 0, fireBuff: 0, godBuff: 0, slowBuff: 0,
+        level: 1, maxLevel: 5, bounces: 0 
+    };
+
+    enemies = []; bullets = []; buffs = []; allies = []; floatingTexts = [];
+    tileMap = [];
+    for(let i=0; i < (WORLD_SIZE/TILE_SIZE)**2; i++) {
+        tileMap.push(Math.random() > 0.8 ? 1 : 0);
+    }
+
+    obstacles = [];
+    for (let i = 0; i < 40; i++) {
+        let ox, oy, ow = 100, oh = 100;
+        let valid = false;
+        while (!valid) {
+            ox = Math.random() * (WORLD_SIZE - 300) + 150;
+            oy = Math.random() * (WORLD_SIZE - 300) + 150;
+            let distToCenter = Math.hypot(ox + ow/2 - centerX, oy + oh/2 - centerY);
+            if (distToCenter > 150) valid = true;
+        }
+        obstacles.push({ x: ox, y: oy, w: ow, h: oh });
+    }
+
+    gameTime = 0; lastShotTime = Date.now(); isRunning = true; score = 0; killsSinceLastAlly = 0;
+    lastBossSpawn = 0; lastLevelUp = 0; rescueZone = null;
+    bossCountPerWave = 1;
+    document.getElementById('overlay').style.display = 'none';
+}
+
+function drawBackground() {
+    const startCol = Math.floor(view.x / TILE_SIZE);
+    const endCol = Math.ceil((view.x + canvas.width) / TILE_SIZE);
+    const startRow = Math.floor(view.y / TILE_SIZE);
+    const endRow = Math.ceil((view.y + canvas.height) / TILE_SIZE);
+
+    for (let r = startRow; r <= endRow; r++) {
+        for (let c = startCol; c <= endCol; c++) {
+            if (r < 0 || c < 0 || r >= WORLD_SIZE/TILE_SIZE || c >= WORLD_SIZE/TILE_SIZE) continue;
+            let idx = r * (WORLD_SIZE/TILE_SIZE) + c;
+            ctx.fillStyle = "#6a8d5e";
+            ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            if (tileMap[idx] === 1) {
+                ctx.fillStyle = "#7a9d6e";
+                ctx.fillRect(c * TILE_SIZE + 15, r * TILE_SIZE + 15, TILE_SIZE - 30, TILE_SIZE - 30);
+            }
+        }
+    }
+}
+
+function drawEntityShadow(x, y, size) {
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.beginPath();
+    ctx.ellipse(x + size/2, y + size - 2, size/2 * 0.7, size/4 * 0.7, 0, 0, Math.PI*2);
+    ctx.fill();
+}
+
+function spawnRescueZone() {
+    rescueZone = { 
+        x: Math.random() * (WORLD_SIZE - 600) + 300, 
+        y: Math.random() * (WORLD_SIZE - 600) + 300, 
+        radius: 120, progress: 0 
+    };
+    addFloatingText("TÌM VÙNG GIẢI CỨU!", "#2ecc71");
+}
+
+function addFloatingText(txt, color) {
+    floatingTexts.push({ text: txt, color: color, y: canvas.height/2, alpha: 1.0 });
+}
+
+// Hàm kiểm tra va chạm vật cản cho bất kỳ thực thể nào (Quái hoặc Người)
+function checkCollision(x, y, size) {
+    return obstacles.some(o => (
+        x < o.x + o.w &&
+        x + size > o.x &&
+        y < o.y + o.h &&
+        y + size > o.y
+    ));
+}
+
+function update() {
+    if (!isRunning) return;
+    gameTime += 1/60;
+
+    if (player.speedBuff > 0) player.speedBuff--;
+    if (player.fireBuff > 0) player.fireBuff--;
+    if (player.godBuff > 0) player.godBuff--;
+    if (player.slowBuff > 0) player.slowBuff--;
+
+    if (gameTime - lastLevelUp >= 30 && player.level < player.maxLevel) {
+        player.level++;
+        lastLevelUp = gameTime;
+        addFloatingText("THĂNG CẤP!", "#f1c40f");
+    }
+
+    if (gameTime - lastBossSpawn >= 30) {
+        for (let i = 0; i < bossCountPerWave; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            enemies.push({ 
+                x: player.x + Math.cos(angle)*800, y: player.y + Math.sin(angle)*800, 
+                speed: 1.5, hp: 60 + (gameTime/2), maxHp: 60 + (gameTime/2), 
+                size: 90, isSlowed: 0, isBoss: true 
+            });
+        }
+        addFloatingText(`BOSS XUẤT HIỆN: x${bossCountPerWave}!`, "#ff4757");
+        bossCountPerWave++;
+        lastBossSpawn = gameTime;
+    }
+
+    if (allies.length < 4 && killsSinceLastAlly >= 50 && !rescueZone) {
+        spawnRescueZone();
+    }
+
+    if (rescueZone) {
+        let d = Math.hypot(player.x + 20 - rescueZone.x, player.y + 20 - rescueZone.y);
+        if (d < rescueZone.radius) {
+            rescueZone.progress += 0.3; 
+            if (rescueZone.progress >= 100) {
+                allies.push({ x: rescueZone.x, y: rescueZone.y, lastShot: 0 });
+                rescueZone = null; 
+                killsSinceLastAlly = 0;
+                addFloatingText("MÍT IU TỚI ĐÂY!", "#2ecc71");
+            }
+        } else if (rescueZone.progress > 0) {
+            rescueZone.progress -= 0.1;
+        }
+    }
+
+    let currentSpeed = player.speedBuff > 0 ? player.speed * 1.7 : player.speed;
+    let mx = (joyX || (keys['a']?-1:keys['d']?1:0)) * currentSpeed;
+    let my = (joyY || (keys['w']?-1:keys['s']?1:0)) * currentSpeed;
+    
+    if (!checkCollision(player.x + mx, player.y + my, 40)) {
+        player.x = Math.max(0, Math.min(WORLD_SIZE-40, player.x+mx));
+        player.y = Math.max(0, Math.min(WORLD_SIZE-40, player.y+my));
+    }
+    view.x = player.x - canvas.width / 2; view.y = player.y - canvas.height / 2;
+
+    allies.forEach(al => {
+        let dToPlayer = Math.hypot(player.x - al.x, player.y - al.y);
+        if (dToPlayer > 80) {
+            al.x += (player.x - al.x) * 0.05;
+            al.y += (player.y - al.y) * 0.05;
+        }
+        if (Date.now() - al.lastShot > 1000 && enemies.length > 0) {
+            let target = enemies[0];
+            let angle = Math.atan2(target.y - al.y, target.x - al.x);
+            bullets.push({ x: al.x+20, y: al.y+20, angle: angle, speed: 10, damage: 1, bouncesLeft: 0, hitList: [] });
+            al.lastShot = Date.now();
+        }
+    });
+
+    for (let i = buffs.length - 1; i >= 0; i--) {
+        let b = buffs[i];
+        if (Math.hypot(player.x + 20 - b.x, player.y + 20 - b.y) < 40) {
+            if (b.type === 'speed') { player.speedBuff = 600; addFloatingText("GẤM TỐC ĐỘ!", "#f1c40f"); }
+            if (b.type === 'fire') { player.fireBuff = 600; addFloatingText("GẤM BẮN NHANH!", "#e67e22"); }
+            if (b.type === 'god') { player.godBuff = 400; addFloatingText("GẤM SIÊU CẤP!", "#f1c40f"); }
+            if (b.type === 'slow') { player.slowBuff = 600; addFloatingText("GẤM LÀM CHẬM!", "#3498db"); }
+            if (b.type === 'heal') { player.hp = Math.min(player.maxHp, player.hp + 1); addFloatingText("HỒI MÁU!", "#2ecc71"); }
+            buffs.splice(i, 1);
+        }
+    }
+
+    if (Math.random() < 0.02 + (gameTime/1200)) {
+        let angle = Math.random() * Math.PI * 2;
+        enemies.push({ 
+            x: player.x + Math.cos(angle)*750, y: player.y + Math.sin(angle)*750, 
+            speed: 1.2 + (gameTime/400), hp: 2 + Math.floor(gameTime/70), 
+            maxHp: 2 + Math.floor(gameTime/70), size: 35, isSlowed: 0, isBoss: false 
+        });
+    }
+
+    let fireRate = (400 - (player.level * 40)) / (player.fireBuff > 0 ? 2 : 1);
+    if (Date.now() - lastShotTime > fireRate && enemies.length > 0) {
+        let target = enemies.reduce((p, c) => Math.hypot(c.x-player.x, c.y-player.y) < Math.hypot(p.x-player.x, p.y-player.y) ? c : p);
+        let baseAngle = Math.atan2(target.y-player.y, target.x-player.x);
+        for(let i=0; i < player.level; i++){
+            let offset = (i - (player.level-1)/2) * 0.15;
+            bullets.push({ 
+                x: player.x+20, y: player.y+20, angle: baseAngle + offset, speed: 13, 
+                damage: player.godBuff > 0 ? 999 : 1, 
+                isSlowEffect: player.slowBuff > 0,
+                bouncesLeft: player.bounces, hitList: [] 
+            });
+        }
+        lastShotTime = Date.now();
+    }
+
+    for (let bi = bullets.length - 1; bi >= 0; bi--) {
+        let b = bullets[bi];
+        b.x += Math.cos(b.angle)*b.speed; b.y += Math.sin(b.angle)*b.speed;
+        
+        for(let ei = enemies.length - 1; ei >= 0; ei--) {
+            let en = enemies[ei];
+            if (Math.hypot(b.x-en.x, b.y-en.y) < en.size/2 + 10) {
+                en.hp -= b.damage;
+                if (b.isSlowEffect) en.isSlowed = 120;
+                b.hitList.push(en);
+                if (b.bouncesLeft > 0) {
+                    b.bouncesLeft--;
+                    let next = enemies.find(e => !b.hitList.includes(e) && Math.hypot(e.x - b.x, e.y - b.y) < 350);
+                    if (next) b.angle = Math.atan2(next.y - b.y, next.x - b.x);
+                    else bullets.splice(bi, 1);
+                } else { bullets.splice(bi, 1); }
+                
+                if (en.hp <= 0) {
+                    if (Math.random() < 0.05) {
+                        const rand = Math.random();
+                        let type;
+                        if (rand < 0.05) type = 'god';
+                        else if (rand < 0.28) type = 'speed';
+                        else if (rand < 0.52) type = 'fire';
+                        else if (rand < 0.76) type = 'slow';
+                        else type = 'heal';
+                        buffs.push({ x: en.x, y: en.y, type: type });
+                    }
+                    if (en.isBoss && player.bounces < 5) {
+                        player.bounces++;
+                        addFloatingText("BẮN ĐẠN NẢY +1", "#3498db");
+                    }
+                    enemies.splice(ei, 1); score++; killsSinceLastAlly++;
+                }
+                break;
+            }
+        }
+        if (b && Math.hypot(b.x-player.x, b.y-player.y) > 1300) bullets.splice(bi, 1);
+    }
+
+    // --- CẢI TIẾN LOGIC DI CHUYỂN QUÁI VẬT (TRÁNH VẬT CẢN & ĐI VÒNG) ---
+    enemies.forEach(en => {
+        let d = Math.hypot(player.x - en.x, player.y - en.y);
+        let moveSpeed = en.isSlowed > 0 ? en.speed * 0.4 : en.speed;
+        if (en.isSlowed > 0) en.isSlowed--;
+
+        // Vector hướng tới người chơi
+        let vx = (player.x - en.x) / d * moveSpeed;
+        let vy = (player.y - en.y) / d * moveSpeed;
+
+        // Thử di chuyển trục X
+        if (!checkCollision(en.x + vx - en.size/2, en.y - en.size/2, en.size)) {
+            en.x += vx;
+        } else {
+            // Nếu bị kẹt X, quái vật sẽ cố gắng trượt theo Y (đi vòng)
+            en.y += (player.y > en.y ? 1 : -1) * moveSpeed * 0.5;
+        }
+
+        // Thử di chuyển trục Y
+        if (!checkCollision(en.x - en.size/2, en.y + vy - en.size/2, en.size)) {
+            en.y += vy;
+        } else {
+            // Nếu bị kẹt Y, quái vật sẽ cố gắng trượt theo X (đi vòng)
+            en.x += (player.x > en.x ? 1 : -1) * moveSpeed * 0.5;
+        }
+
+        if (d < en.size/2 + 15 && player.invuln <= 0 && player.godBuff <= 0) {
+            player.hp--; player.invuln = 60;
+            if (player.hp <= 0) {
+                isRunning = false;
+                document.getElementById('overlay').style.display = 'flex';
+            }
+        }
+    });
+
+    if (player.invuln > 0) player.invuln--;
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        floatingTexts[i].y -= 1; floatingTexts[i].alpha -= 0.01;
+        if (floatingTexts[i].alpha <= 0) floatingTexts.splice(i, 1);
+    }
+
+    updateUI(); draw(); drawMinimap();
+    requestAnimationFrame(update);
+}
+
+function updateUI() {
+    document.getElementById('hp-text').innerText = `${player.hp}/${player.maxHp}`;
+    document.getElementById('player-level').innerText = player.level + (player.level >= 5 ? " (MAX)" : "");
+    document.getElementById('bounce-count').innerText = player.bounces;
+    document.getElementById('kill-count').innerText = allies.length >= 4 ? "MAX" : killsSinceLastAlly;
+    document.getElementById('allies-count').innerText = `${allies.length} / 4`;
+    let rs = document.getElementById('rescue-status');
+    if (rescueZone) rs.innerText = `ĐANG GIẢI CỨU: ${Math.floor(rescueZone.progress)}%`;
+    else if (killsSinceLastAlly >= 50 && allies.length < 4) rs.innerText = "HÃY GIẢI CỨU MÍT!";
+    else rs.innerText = "";
+}
+
+function draw() {
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.globalAlpha = 1.0;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.translate(-view.x,-view.y);
+
+    drawBackground();
+    
+    obstacles.forEach(o => { 
+        ctx.fillStyle = "rgba(0,0,0,0.2)";
+        ctx.fillRect(o.x + 5, o.y + o.h - 10, o.w, 15);
+        ctx.fillStyle="#8e8e8e"; ctx.fillRect(o.x, o.y, o.w, o.h); 
+        ctx.strokeStyle="rgba(0,0,0,0.1)"; ctx.strokeRect(o.x, o.y, o.w, o.h);
+    });
+
+    if (rescueZone) {
+        ctx.beginPath(); ctx.arc(rescueZone.x, rescueZone.y, rescueZone.radius, 0, Math.PI*2);
+        ctx.strokeStyle = "#2ecc71"; ctx.lineWidth = 5; ctx.stroke();
+        ctx.fillStyle = "rgba(46, 204, 113, 0.15)"; ctx.fill();
+    }
+
+    buffs.forEach(b => {
+        let img = sprites.buffHeal;
+        if(b.type === 'speed') img = sprites.buffSpeed;
+        if(b.type === 'fire') img = sprites.buffFire;
+        if(b.type === 'god') img = sprites.buffGod;
+        if(b.type === 'slow') img = sprites.buffSlow;
+        ctx.drawImage(img, b.x-15, b.y-15, 30, 30);
+    });
+
+    allies.forEach(al => {
+        drawEntityShadow(al.x, al.y, 40);
+        ctx.drawImage(sprites.ally, al.x, al.y, 40, 40);
+    });
+
+    enemies.forEach(en => {
+        drawEntityShadow(en.x - en.size/2, en.y - en.size/2, en.size);
+        if (sprites.enemy.complete) ctx.drawImage(sprites.enemy, en.x - en.size/2, en.y - en.size/2, en.size, en.size);
+        ctx.fillStyle = "#333"; ctx.fillRect(en.x - en.size/2, en.y - en.size/2 - 12, en.size, 6);
+        ctx.fillStyle = en.isSlowed > 0 ? "#3498db" : (en.isBoss ? "#ff4757" : "#2ecc71");
+        ctx.fillRect(en.x - en.size/2, en.y - en.size/2 - 12, en.size * (en.hp/en.maxHp), 6);
+    });
+
+    if (player.invuln % 10 < 5) {
+        drawEntityShadow(player.x, player.y, 40);
+        if (player.godBuff > 0) { ctx.shadowBlur = 15; ctx.shadowColor = "gold"; }
+        if (sprites.player.complete) ctx.drawImage(sprites.player, player.x, player.y, 40, 40);
+        ctx.shadowBlur = 0;
+        
+        if (player.level >= player.maxLevel) {
+            ctx.fillStyle = "#f1c40f";
+            ctx.font = '8px "Press Start 2P"';
+            ctx.textAlign = "center";
+            ctx.fillText("CẤP ĐỘ TỐI ĐA", player.x + 20, player.y - 15);
+        }
+    }
+
+    bullets.forEach(b => {
+        ctx.shadowBlur = 5; ctx.shadowColor = "white";
+        ctx.fillStyle = b.damage > 10 ? "#f1c40f" : (b.isSlowEffect ? "#3498db" : "#fff");
+        ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+
+    ctx.setTransform(1,0,0,1,0,0);
+    floatingTexts.forEach(t => {
+        ctx.globalAlpha = t.alpha; ctx.fillStyle = t.color; ctx.font = '14px "Press Start 2P"';
+        ctx.textAlign = "center"; ctx.fillText(t.text, canvas.width/2, t.y);
+    });
+    ctx.globalAlpha = 1.0;
+}
+
+function drawMinimap() {
+    miniCtx.clearRect(0, 0, 120, 120); const s = 120/WORLD_SIZE;
+    miniCtx.fillStyle="rgba(0,0,0,0.6)"; miniCtx.fillRect(0,0,120,120);
+    miniCtx.fillStyle="#3498db"; miniCtx.fillRect(player.x*s, player.y*s, 4, 4);
+    enemies.forEach(en => { miniCtx.fillStyle=en.isBoss?"#f44":"#e74"; miniCtx.fillRect(en.x*s, en.y*s, 2, 2); });
+    if (rescueZone) { miniCtx.fillStyle="#2ecc71"; miniCtx.beginPath(); miniCtx.arc(rescueZone.x*s, rescueZone.y*s, 4, 0, 7); miniCtx.fill(); }
+}
+
+function handleJoy(e) {
+    if (e.touches) e.preventDefault();
+    const touch = e.touches ? e.touches[0] : e;
+    const rect = base.getBoundingClientRect();
+    const dx = touch.clientX - (rect.left + rect.width/2);
+    const dy = touch.clientY - (rect.top + rect.height/2);
+    const dist = Math.hypot(dx, dy);
+    joyX = dist > 0 ? dx/dist * Math.min(dist/40, 1) : 0;
+    joyY = dist > 0 ? dy/dist * Math.min(dist/40, 1) : 0;
+    stick.style.transform = `translate(${joyX*40}px, ${joyY*40}px)`;
+}
+
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+base.addEventListener('touchstart', handleJoy); base.addEventListener('touchmove', handleJoy);
+base.addEventListener('touchend', () => { stick.style.transform = 'translate(0,0)'; joyX = 0; joyY = 0; });
+document.getElementById('btnRetry').onclick = () => location.reload();
+window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+
+initGame(); update();
+</script>
+</body>
+</html>
